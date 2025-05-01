@@ -1,1 +1,1 @@
-This github is for empirical Methods used in Python (Jupyter NBs.ipynb) and Stata (do-files & log-files) is to store Datasets and generated Output like Regression-Tables, complex Graphs and pictures for Tools etc..
+This github is for empirical Methods used in Python (Jupyter NBs.ipynb) and Stata (do-files & log-files) storing Datasets and generated Output like Regression Tables, complex Graphs and pictures for Tools etc..
