@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8"/>
+<title>DATAx-Veranstaltungskalender WS 25/26</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+:root{
+  --ex:#16a34a; --ex-fill:rgba(22,163,74,.32);
+  --pr:#eab308; --pr-fill:rgba(253,230,138,.50);
+  --le:#2563eb; --le-fill:rgba(37,99,235,.30);
+  --su:#dc2626; --su-fill:rgba(220,38,38,.36);
+  --ad:#dc2626; --ad-fill:#1e7a45;
+  --break:#7a2e1d; --break-fill:rgba(122,46,29,.34);
+  --gold:#d4af37;
+}
+*{box-sizing:border-box}
+body{font-family:Arial,Helvetica,sans-serif;margin:0;background:#fff;color:#111}
+.grid{display:grid;grid-template-columns:360px 1fr;gap:12px;padding:14px;align-items:start}
+aside{background:#fff;border:1px solid #ddd;border-radius:12px;padding:16px;position:sticky;top:12px;align-self:start}
+aside h2{margin:0 0 10px}
+aside p{margin:0 0 14px;color:#555;font-size:13px}
+button.btn{
+  width:100%; margin:10px 0; padding:18px 16px;
+  min-height:78px; border-radius:14px; border:3px solid transparent;
+  cursor:pointer; font-weight:800; font-size:16px; text-align:left;
+}
+button.btn[data-cat=ex]{border-color:var(--ex);background:var(--ex-fill)}
+button.btn[data-cat=pr]{border-color:var(--pr);background:var(--pr-fill)}
+button.btn[data-cat=le]{border-color:var(--le);background:var(--le-fill)}
+button.btn[data-cat=su]{border-color:var(--su);background:var(--su-fill)}
+button.btn[data-cat=ad]{
+  border-color:var(--ad); background:var(--ad-fill);
+  font-family:"Times New Roman", Times, serif; font-weight:700;
+}
+button.active{outline:0;box-shadow:0 0 0 3px #0002 inset}
+hr.sep{margin:28px 0;border:0;border-top:1px dashed #ddd}
+.badge{display:flex;gap:10px;align-items:center;border:1px solid #eee;border-radius:12px;padding:12px;margin-top:10px}
+.badge .txt{font-size:13px;line-height:1.25}
+.badge .title{font-weight:700;margin-bottom:2px}
+.badge .hint{color:#444}
+main{border:1px solid #ddd;border-radius:12px;padding:8px;position:relative;background:#fff}
+h2.main-title{margin:6px 8px 10px}
+#cal{height:1800px; position:relative}
+
+/* Giebel-Schild */
+#gable-sign{
+  position:absolute; display:none; z-index:6; pointer-events:none;
+  transform:translate(-50%,-50%);
+  font-family:"Times New Roman", Times, serif; font-size:18px; font-weight:700; color:#fff;
+  background:#b91c1c; border:3px solid #7a1a1a; border-radius:10px;
+  padding:6px 12px; text-align:center; white-space:nowrap;
+}
+
+/* Modal */
+.modal-bg{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.55);justify-content:center;align-items:center;z-index:10}
+.modal{
+  --modal-color:#111;
+  padding:24px 28px;border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.35);
+  min-width:320px;max-width:780px;text-align:left;color:#000;animation:fade .25s ease;
+  background:#fff;border:4px solid #111; position:relative; overflow:hidden;
+}
+.modal.door-open::before{
+  content:""; position:absolute; left:-14px; top:8%; width:34px; height:84%;
+  background:var(--modal-color);
+  box-shadow:inset -6px 0 10px rgba(0,0,0,.25), 2px 0 8px rgba(0,0,0,.25);
+  border:2px solid rgba(0,0,0,.15); transform-origin:right center; transform:perspective(400px) rotateY(-22deg);
+  border-right:none;
+}
+.modal h2{margin:0 0 12px 0;font-size:20px}
+.modal .note{font-size:18px;line-height:1.5;white-space:pre-line}
+.modal .codewrap{display:flex;gap:8px;align-items:center;margin-top:6px}
+.modal input[type=password]{flex:1; padding:10px 12px; border-radius:8px; border:2px solid #0008; font-size:16px}
+.modal button{margin-top:10px;padding:10px 16px;border:none;border-radius:8px;background:#111;color:#fff;cursor:pointer}
+.modal .msg{margin-top:6px;font-size:14px;min-height:20px}
+@keyframes fade{from{opacity:0;transform:scale(.96)}to{opacity:1}}
+
+/* Fixierte Deko unten links */
+.fixed-decor{
+  position:fixed; left:12px; bottom:12px; z-index:20;
+  display:none; flex-direction:row; align-items:flex-start; gap:10px;
+  width: 340px; max-width: 92vw;
+}
+.fixed-card{ padding:10px 12px; border-radius:14px; background:#f6fff6; border:2px solid #c4eac4; box-shadow:0 0 18px rgba(0,100,0,.2); display:flex; align-items:flex-start; gap:10px; }
+.tree svg{ width:90px; height:300px; }
+.label{ font-size:14px; line-height:1.25; font-weight:800; color:#064e3b; white-space:pre-line; max-width:220px; word-break:break-word; }
+
+/* Unten rechts */
+.bottom-right-quote{
+  position:fixed; right:12px; bottom:12px; z-index:20; display:none;
+  padding:10px 12px; border-radius:14px; background:#fffaf0; border:2px solid #facc15;
+  box-shadow:0 0 18px rgba(120,80,0,.25); font-weight:800; color:#7a3e00;
+}
+
+/* Advent-Hintergrund */
+.ad-theme{
+  background:
+    radial-gradient(900px 700px at 20% 10%, rgba(255,255,255,.08), transparent 60%),
+    radial-gradient(1200px 900px at 80% 20%, rgba(255,255,255,.06), transparent 60%),
+    linear-gradient(120deg, rgba(255,225,170,.18), rgba(255,225,170,0) 35%, rgba(255,225,170,.2) 60%, rgba(255,225,170,0) 100%),
+    repeating-linear-gradient(135deg,#0a3a2a 0 22px,#145a3c 22px 44px,#b91c1c 44px 54px,#145a3c 54px 76px,#0a3a2a 76px 98px);
+  background-attachment: fixed;
+}
+.ad-theme::after,
+.ad-theme::before{
+  content:""; position:fixed; inset:-25vw -25vh; z-index:0; pointer-events:none;
+  background:
+    linear-gradient(90deg, rgba(212,175,55,1), rgba(212,175,55,0) 65%),
+    linear-gradient(90deg, rgba(255,240,200,.9), rgba(255,240,200,0) 60%),
+    linear-gradient(90deg, rgba(255,255,255,.85), rgba(255,255,255,0) 55%);
+  background-repeat:no-repeat; transform: rotate(-18deg);
+}
+.ad-theme::after{ background-size: 40vw 6px, 26vw 4px, 18vw 3px; animation: shootA 7s linear infinite }
+.ad-theme::before{ background-size: 28vw 8px, 18vw 5px, 12vw 3px; animation: shootB 5.5s linear infinite }
+@keyframes shootA{0%{background-position:-60vw 12vh, -65vw 30vh, -55vw 70vh; opacity:0}10%{opacity:.95}50%{background-position:120vw 20vh, 110vw 55vh, 130vw 85vh; opacity:.95}60%{opacity:0}100%{background-position:120vw 20vh, 110vw 55vh, 130vw 85vh; opacity:0}}
+@keyframes shootB{0%{background-position:-50vw 60vh, -70vw 10vh, -65vw 40vh; opacity:0}10%{opacity:.9}55%{background-position:125vw 75vh, 115vw 25vh, 120vw 50vh; opacity:.9}65%{opacity:0}100%{background-position:125vw 75vh, 115vw 25vh, 120vw 50vh; opacity:0}}
+@media (prefers-reduced-motion: reduce){ .ad-theme::before, .ad-theme::after{ display:none } }
+</style>
+</head>
+<body>
+<div class="grid">
+  <aside>
+    <h2>Filter</h2>
+    <p>Nur eine Kategorie aktiv</p>
+
+    <button class="btn" data-cat="ex">DATAx-Prüfungsleistungen</button>
+    <button class="btn" data-cat="pr">DATAx-Übungen</button>
+    <button class="btn" data-cat="le">DATAx-Vorlesungen</button>
+    <button class="btn" data-cat="su">Umfragen</button>
+    <button class="btn" data-cat="ad">DATAx-Adventskalender</button>
+
+    <hr class="sep">
+
+    <div class="decor">
+      <div id="badge" class="badge" aria-live="polite">
+        <div class="txt"><div class="title">Kategorie wählen</div><div class="hint">Links Button wählen, um Termine zu sehen.</div></div>
+      </div>
+    </div>
+  </aside>
+
+  <main>
+    <h2 class="main-title">🎄 DATAx-Veranstaltungskalender WS 25/26</h2>
+    <div id="gable-sign">Adventskalender-Quiz WS25/26</div>
+    <div id="cal"></div>
+  </main>
+</div>
+
+<!-- Modal -->
+<div class="modal-bg" id="modal-bg">
+  <div class="modal" id="modal">
+    <h2 id="m-date"></h2>
+    <div id="m-locked" class="note" style="display:none">
+      <div class="codewrap">
+        <input type="password" id="code-input" autocomplete="new-password"/>
+        <button id="code-btn">Öffnen</button>
+      </div>
+      <div id="code-msg" class="msg"></div>
+    </div>
+    <div id="m-text" class="note"></div>
+    <button id="close">✔ Schließen</button>
+  </div>
+</div>
+
+<!-- Deko -->
+<div class="fixed-decor" id="decor-left">
+  <div id="decor-tree" class="fixed-card tree" style="background:#f0fff4; border-color:#bbf7d0;">
+    <svg viewBox="0 0 90 300" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <polygon points="45,8 50,22 64,22 52,30 56,46 45,38 34,46 38,30 26,22 40,22"
+               fill="#facc15" stroke="#ca8a04" stroke-width="2"/>
+      <g fill="#065f46" stroke="#064e3b" stroke-width="3">
+        <polygon points="45,50 78,92 12,92"/>
+        <polygon points="45,90 84,150 6,150"/>
+        <polygon points="45,140 88,220 2,220"/>
+      </g>
+      <rect x="38" y="220" width="14" height="36" fill="#7c3f13"/>
+    </svg>
+    <div class="label">Planet "Jupyter" NBs...
+and Christmas Stars
+are on the horizon
+of WS25/26!</div>
+  </div>
+</div>
+
+<div id="br-quote" class="bottom-right-quote">Python-Jupyter Notebook and Christmas Stars...!</div>
+
+<script>
+/* Zeitraum / Helpers */
+const START=new Date(Date.UTC(2025,9,13)),END=new Date(Date.UTC(2026,1,15));
+function wd(d){let w=d.getUTCDay();return w===0?7:w;}
+function addDays(d,n){let r=new Date(d);r.setUTCDate(r.getUTCDate()+n);return r;}
+function* range(a,b){let c=new Date(a);while(c<=b){yield new Date(c);c=addDays(c,1);} }
+function fmtDate(d){const W=["Mo.","Di.","Mi.","Do.","Fr.","Sa.","So."],M=["Jan.","Feb.","Mär.","Apr.","Mai","Jun.","Jul.","Aug.","Sep.","Okt.","Nov.","Dez."];return `${W[wd(d)-1]} ${d.getUTCDate()}. ${M[d.getUTCMonth()]}`;}
+function iso(d){return d.toISOString().slice(0,10);}
+function getCSS(name){return getComputedStyle(document.documentElement).getPropertyValue(name).trim();}
+function between(isoDate, a, b){return isoDate>=a && isoDate<=b;}
+function hexToRgb(hex){const m=hex.trim().match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);if(!m)return{r:255,g:255,b:255};return{r:parseInt(m[1],16),g:parseInt(m[2],16),b:parseInt(m[3],16)}}
+function rgbaString(hex,a=.97){const {r,g,b}=hexToRgb(hex);return `rgba(${r},${g},${b},${a})`}
+function contrastColor(hex){const {r,g,b}=hexToRgb(hex);const yiq=(r*299+g*587+b*114)/1000;return yiq>=140?"#111":"#fff"}
+function dayOfMonthFromIso(isoStr){return parseInt(isoStr.slice(8,10),10);}
+
+/* Advents-Konstanten */
+const AD_FROM="2025-12-01", AD_TO="2025-12-24";
+const BREAK_FROM="2025-12-20", BREAK_TO="2026-01-04";
+
+/* Hotspot-ID */
+const HOTSPOT_GABLE = "gable";
+
+/* Kategorien – [ISO, Titel, Detail] */
+const CATS={
+  ex:{ color:getCSS('--ex'), fill:getCSS('--ex-fill'), name:"DATAx-Prüfungsleistungen", data:[
+    ["2025-11-12",`Coding-Projekt-Draft-
+Abgabe (16:00h)`,`Coding-Projekt-Draft-Abgabe  (16:00h)`],
+    ["2025-11-17","Feedback-Coding Projekt","Feedback-Coding Projekt"],
+    ["2025-11-23",`Coding-Projekt-Abgabe
+ (final, 16:00h)|15 P.`,`Coding-Projekt-Abgabe (final, 16:00h)|15 P.`],
+    ["2025-12-04",`Gruppenprojekt-Draft 1
+ (16:00h)`,"Gruppenprojekt-Draft 1 (16:00h)"],
+    ["2026-01-06",`Gruppenprojekt-Draft 2
+ (16:00h)`,"Gruppenprojekt-Draft 2 (16:00h)"],
+    ["2026-01-19",`Gruppenprojekt-Präsentationen
+ Teil 1 | 35 P.`,`Gruppenprojekt-Präsentationen Teil 1 | 35 P.`],
+    ["2026-01-16","Gruppenprojekt-PPTx-Abgabe\n(final, 16:00h)","Gruppenprojekt-PPTx-Abgabe (final, 16:00h)"],
+    ["2026-01-26",`Gruppenprojekt-Präsentationen
+ Teil 2`,`Gruppenprojekt-Präsentationen Teil 2 | 35 P.`],
+    ["2026-02-14","Schriftlicher TEST | 50 P.", "Schriftlicher TEST | 50 P."]
+  ]},  
+  pr:{ color:getCSS('--pr'), fill:getCSS('--pr-fill'), name:"DATAx-Übungen", data:[
+    ["2025-10-13","Onboarding","Onboarding"],
+    ["2025-10-20","Prompting AI","Prompting AI"],
+    ["2025-10-27","Programming I","Programming I"],
+    ["2025-11-03","Programming II","Programming II"],
+    ["2025-11-10","Programming III","Programming III"],
+    ["2025-11-17","Feedback-Coding Projekt","Feedback-Coding Projekt"],
+    ["2025-11-24","Data Analysis I","Data Analysis I"],
+    ["2025-12-01","Data Analysis II","Data Analysis II"],
+    ["2025-12-08","Machine Learning I / Feedback I","Machine Learning I / Feedback I"],
+    ["2025-12-15","Machine Learning II / Feedback II","Machine Learning II / Feedback II"],
+    ["2026-01-05","Machine Learning III","Machine Learning III"],
+    ["2026-01-12","Machine Learning IV","Machine Learning IV"],
+    ["2026-02-02","Test-Vorbereitung","Test-Vorbereitung"]
+  ]},
+  le:{ color:getCSS('--le'), fill:getCSS('--le-fill'), name:"DATAx-Vorlesungen", data:[
+    ["2025-10-13","Course Introduction","Course Introduction"],
+    ["2025-10-20","Introduction to AI","Introduction to AI"],
+    ["2025-10-27","Rule-Based System Intro","Rule-Based System Intro"],
+    ["2025-11-03","Computational Thinking","Computational Thinking"],
+    ["2025-11-10","Rule-System Implementation","Rule-System Implementation"],
+    ["2025-11-17","Introduction to Data Analysis","Introduction to Data Analysis"],
+    ["2025-11-24","Machine Learning Intro","Machine Learning Intro"],
+    ["2025-12-01","ML Classification","ML Classification"],
+    ["2025-12-08","Epistemology of AI","Epistemology of AI"],
+    ["2025-12-15","Creativity & AI","Creativity & AI"],
+    ["2026-01-05","Recommendation Systems","Recommendation Systems"],
+    ["2026-01-12","Generative AI","Generative AI"],
+    ["2026-01-19","AI Ethics","AI Ethics"]
+  ]},
+  su:{ color:getCSS('--su'), fill:getCSS('--su-fill'), name:"Umfragen", data:[
+    ["2025-10-13","DATAx-Survey # I","DATAx-Survey # I"],
+    ["2025-10-20","Assessment AI-Usage #1","Assessment AI-Usage #1"],
+    ["2025-12-01","Assessment AI-Usage #2","Assessment AI-Usage #2"],
+    ["2026-01-26","DATAx-Survey#II/ AssessmentAI-Usage#3","DATAx-Survey#II/ AssessmentAI-Usage #3"],
+  ]},
+  ad:{ color:getCSS('--ad'), fill:getCSS('--ad-fill'), name:"DATAx-Adventskalendar", data:[
+    ["2025-12-01","",`Mit welcher Tastenkombination kann ich eine neue Code-Zelle im Jupyter-Notebook (unter meinen vorhandenen Zellen) erzeugen?`],
+    ["2025-12-02","",`Stellt man logische Operatoren als zwei überlappende Kreise dar: Welche Fläche veranschaulicht der logische Operator UND?`],
+    ["2025-12-03","",`Mit welcher Tastenkombination kann ich eine Markdown-(Text)-Zelle in eine Coding-Zelle umwandeln?`],
+    ["2025-12-04","",`Gibt es einen Unterschied zwischen einer Text-Zelle und eine Markdown-Zelle?`],
+    ["2025-12-05","",`Ist die Python library "seaborn" zur Gestaltung von Grafiken und anschaulichen Illustrationen nützlich?`],
+    ["2025-12-06","",`Haben John Hopfield und Geoffrey Hinton im Jahr 2024 den Physik-Nobelpreis für ihre KI-Grundlagen-Forschung erhalten?`],
+    ["2025-12-07","",`Wieviel Hidden Layers muss ein Neuronales Netz haben, damit man von Deep Learning sprechen kann?`],
+    ["2025-12-08","",`Was bewirkt in einer Markdown-Zelle ein Hashtag (#) plus Leerzeichen vor einer Überschrift?`],
+    ["2025-12-09","",`Heißen bedingte Anweisungen (in Python) bei Funktionen: if, elif und else?`],
+    ["2025-12-10","",`Kann bei dem Einsatz von Funktionen in Python-JupyterNB die bedingte Anweisung „elif“ für einen geringeren Rechenaufwand sorgen als wenn man nur „if“ verwenden würde?`],
+    ["2025-12-11","",`Gibt es bei logischen Operatoren neben UND und ODER auch das exklusive ODER (XOR)? Gibt es ein Zeichen hierfür in Python oder müsste ich es     
+    konstruieren?`],
+    ["2025-12-12","",`Was sind in Python sogenannte Vergleichsoperatoren?`],
+    ["2025-12-13","",`Welchen Datentyp bezeichnen FLOAT-Variablen in Python?`],
+    ["2025-12-14","",`Welches KI-Modell (Chatbot) würde man sich bei „ChatAI“ für logisch-analytische Angelegenheiten auswählen?`],
+    ["2025-12-15","",`Wie heißt die Prompting-Strategie, bei der man Beispiele im Prompt nennt?`],
+    ["2025-12-16","",`Wie heißt die Prompting-Strategie bei einer schrittweisen Aufforderung wie „Let’s think step by step“?`],
+    ["2025-12-17","",`Wofür stehen die sogenannten Tokens bei Large Language Models (LLMs)?`],
+    ["2025-12-18","",`Was sind „Halluzinationen“ bei KI-Modellen?`],
+    ["2025-12-19","",`Was versteht man unter Lemmatisierung in der Natural Language Processing Pipeline?`],
+    ["2025-12-20","",`Kann man für Grafiken die library matplotlippyplot as plt wählen und diese importieren?`],
+    ["2025-12-21","",`" Habe nun, ach(!) Philosophie, 
+     Juristerei und Medizin 
+     und leider auch Theologie 
+     durchaus studiert, mit heißem Bemühen, 
+     da steh ich nun, ich armer <b><i>KI-THOR</i></b>(!) 
+     und bin so klug als wie zuvor "
+     Adventsquiz-Frage: Was ist ein KI-AGENT?`],
+    ["2025-12-22","",`Stimmt es, dass ich in einer grafischen Darstellung einer Verteilung (Boxplot) stets den Median ablesen kann?`],
+    ["2025-12-23","",`Wie nennt man es, wenn die Schiefe einer Verteilung negativ ist? (Hinweis: links-/rechtsschief)`],
+    ["2025-12-24","",`Wir singen „Rudolph the Red-Nosed Reindeer / Rudolph the Red-Nosed Avatar“ …Dieser fragt: Was ist der Unterschied zwischen generativer KI und einem KI-Agenten, welcher euch Frohe Weihnachten wünscht...!?`]
+  ]}
+};
+
+let active=null;let days=[];let gableGeom=null;
+
+/* Badge */
+function setBadge(){
+  const el=document.getElementById('badge');
+  if(!active){
+    el.innerHTML=`<div class="txt"><div class="title">Kategorie wählen</div><div class="hint">Links Button wählen, um Termine zu sehen.</div></div>`;
+  }else{
+    el.innerHTML=`<div class="txt"><div class="title">${CATS[active].name}</div><div class="hint">${active==='ad'?'Türchen 1–24 (Dezember) • Code erforderlich':'Einträge im Kalender hervorgehoben'}</div></div>`;
+  }
+}
+
+/* Deko */
+function updateDecor(){
+  const treeCard = document.getElementById('decor-left');
+  if(active==='ad'){
+    treeCard.style.display='flex';
+    document.body.classList.add('ad-theme');
+  }else{
+    treeCard.style.display='none';
+    document.body.classList.remove('ad-theme');
+  }
+}
+
+/* Ferien-Hovertext */
+function breakHoverText(isoDate){
+  if(isoDate>="2025-12-27" && isoDate<="2025-12-31") return "GUTEN RUTSCH 🎆";
+  if(isoDate>="2026-01-01" && isoDate<="2026-01-04") return "FROHES NEUES JAHR 2026 🎉";
+  if(isoDate>="2025-12-22" && isoDate<="2025-12-26") return "FROHE WEIHNACHTEN 🎄";
+  return "Weihnachtspause";
+}
+
+/* Plot-Grid-Helfer */
+function cellBox(isoWanted){
+  const d=days.find(v=>v.iso===isoWanted); if(!d) return null;
+  const nRows=Math.max(...days.map(x=>x.row))+1, w=1,h=1.3;
+  const x0=d.col*w, y0=(nRows-1-d.row)*h, x1=x0+w, y1=y0+h;
+  return {x0,y0,x1,y1};
+}
+function hexToLuma(hex){const {r,g,b}=hexToRgb(hex);return (r*299+g*587+b*114)/1000;}
+function textColorOn(hex){return hexToLuma(hex)>=140?"#111":"#fff"}
+
+/* --- NEU: Lösungen (gelb), Punkte (hellbraun) + Spekulatius --- */
+const SOLUTIONS = {
+  1: { ans:`die Tastenkombination "esc + b"`, pts:`Sie erhalten hierfür 5 Punkte, congratulations!` },
+  2: { ans:`Der logische Operator "UND" ist durch die Schnittmenge der beiden Kreise grafisch darstellbar!`, pts:`Sie erhalten hierfür 5 Punkte, congratulations!` },
+  3: { ans:`die Tastenkombination "esc + y"`, pts:`Sie erhalten hierfür 5 Punkte, congratulations!` },
+  4: { ans:`Nein, es gibt keinen Unterschied.!`, pts:`Sie erhalten hierfür 5 Punkte, congratulations!` }
+  // weitere: 5: { ans:'…', pts:'…' }, …, 24: { … }
+};
+// Helfer: ersten Buchstaben groß
+function capFirst(s){ if(!s) return s; s=String(s); return s.charAt(0).toUpperCase()+s.slice(1); }
+// Spekulatius-Icon (SVG, klein)
+const SPEKULATIUS_ICON = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 20" width="22" height="16" aria-hidden="true">
+  <rect x="1" y="1" width="26" height="18" rx="3" ry="3" fill="#d2b48c" stroke="#8b5a2b" stroke-width="1.5"/>
+  <g fill="#8b5a2b">
+    <circle cx="8" cy="7" r="1.1"/><circle cx="14" cy="7" r="1.1"/><circle cx="20" cy="7" r="1.1"/>
+    <circle cx="8" cy="13" r="1.1"/><circle cx="14" cy="13" r="1.1"/><circle cx="20" cy="13" r="1.1"/>
+  </g>
+  <path d="M4 3h20M4 17h20" stroke="#c49a6c" stroke-width="1" stroke-linecap="round"/>
+</svg>`;
+function renderSolution(day){
+  const entry = SOLUTIONS[day];
+  if(!entry){
+    return `Lösung für den ${day}. Dezember ist noch nicht hinterlegt.`;
+  }
+  const ans = capFirst((entry.ans||'').trim());
+  const pts = (entry.pts||'').trim();
+  return `
+    <div>
+      <div style="color:#facc15; font-weight:800;">Lösung:</div>
+      <div style="color:#facc15; font-weight:800; margin-top:4px;">${ans}</div>
+      <div style="color:#000; font-weight:700; margin-top:10px; display:flex; align-items:center; gap:8px;">
+        ${SPEKULATIUS_ICON}
+        <span>${pts}</span>
+      </div>
+    </div>
+  `;
+}
+let currentAdIso=null;
+let currentAdDay=null;
+function applyAdventLockUI(day){
+  const input = document.getElementById('code-input');
+  const btn   = document.getElementById('code-btn');
+  const msg   = document.getElementById('code-msg');
+  const text  = document.getElementById('m-text');
+
+  input.value = "";
+  msg.textContent = "";
+  text.dataset.state = "question";
+
+  btn.onclick = () => checkAdventPassword(day);
+  input.onkeydown = (e)=>{ if(e.key==='Enter'){ checkAdventPassword(day); } };
+
+  setTimeout(()=>{ try{ input.focus(); }catch(_){} }, 10);
+}
+function checkAdventPassword(day){
+  const required = `Nikolaus${day}`;
+  const input = document.getElementById('code-input');
+  const msg   = document.getElementById('code-msg');
+  const text  = document.getElementById('m-text');
+
+  const given = (input.value||"").trim();
+  if(given===required){
+    text.innerHTML = renderSolution(day);
+    msg.style.color = "#065f46";
+    msg.textContent = "✔ Korrektes Kennwort – Lösung geöffnet.";
+  }else{
+    msg.style.color = "#991b1b";
+    msg.textContent = "✖ Falsches Kennwort. Bitte erneut versuchen.";
+  }
+}
+
+/* Render */
+function render(){
+  const startMon=addDays(START,-(wd(START)-1));
+  days=[];for(const d of range(START,END)){days.push({d,iso:iso(d),col:wd(d)-1,row:Math.floor((d-startMon)/(7*864e5))});}
+  const nRows=Math.max(...days.map(x=>x.row))+1,w=1,h=1.3,p=.05;
+
+  const shapes=[];
+  const txEntry=[],tyEntry=[],ttEntry=[],cdEntry=[],htEntry=[];
+  const txBreak=[],tyBreak=[],ttBreak=[],htBreak=[],cdBreak=[];
+  const txHot=[],tyHot=[],ttHot=[],cdHot=[];
+  const annotations=[];
+
+  /* Giebel-Geometrie */
+  gableGeom=null;
+  if(active==='ad'){
+    const b1=cellBox("2025-12-01"), b7=cellBox("2025-12-07"), bOct=cellBox("2025-10-30");
+    if(b1 && b7 && bOct){
+      const baseY = b1.y1 - 0.02, leftX = b1.x0 + 0.02, rightX= b7.x1 - 0.02;
+      const apexX = (bOct.x0 + bOct.x1)/2, apexY = bOct.y1;
+      gableGeom={leftX, rightX, baseY, apexX, apexY};
+    }
+  }
+
+  for(const x of days){
+    const x0=x.col*w,y0=(nRows-1-x.row)*h,x1=x0+w,y1=y0+h;
+
+    shapes.push({type:"rect",layer:"below",x0:x0+p,y0:y0+p,x1:x1-p,y1:y1-p,line:{color:"#aaa"},fillcolor:"#fff"});
+
+    if(between(x.iso, BREAK_FROM, BREAK_TO)){
+      shapes.push({type:"rect",layer:"below",
+        x0:x0+p*.28,y0:y0+p*.28,x1:x1-p*.28,y1:y1-p*.28,
+        line:{color:getCSS('--break'),width:4},fillcolor:getCSS('--break-fill')});
+      txBreak.push((x0+x1)/2); tyBreak.push((y0+y1)/2+.02);
+      ttBreak.push(""); htBreak.push(breakHoverText(x.iso));
+      cdBreak.push([x.iso,"break","","",getCSS('--break'),getCSS('--break-fill')]);
+    }
+
+    if(active==='ad' && between(x.iso, AD_FROM, AD_TO)){
+      shapes.push({type:"rect",layer:"below",
+        x0:x0+p*.28,y0:y0+p*.28,x1:x1-p*.28,y1:y1-p*.28,
+        line:{color:CATS.ad.color,width:4},fillcolor:CATS.ad.fill});
+    }
+
+    const dx=x0+0.10, dy=y1-0.12;
+    annotations.push({x:dx+0.02,y:dy-0.02,xref:"x",yref:"y",text:fmtDate(x.d),showarrow:false,
+      xanchor:"left",yanchor:"top",font:{family:"Arial, Helvetica, sans-serif",size:16,color:"#fff"}});
+    annotations.push({x:dx,y:dy,xref:"x",yref:"y",text:fmtDate(x.d),showarrow:false,
+      xanchor:"left",yanchor:"top",font:{family:"Arial, Helvetica, sans-serif",size:16,color:"#111"}});
+  }
+
+  if(active){
+    const bucket=new Map();
+    for(const [dIso,title,detail] of CATS[active].data){
+      if(!bucket.has(dIso)) bucket.set(dIso,{titles:[], detail:detail||""});
+      const obj=bucket.get(dIso);
+      obj.titles.push(title||"");
+      if(detail) obj.detail = detail;
+    }
+    for(const [dIso,obj] of bucket){
+      const d=days.find(v=>v.iso===dIso); if(!d) continue;
+      const x0=d.col*w,y0=(nRows-1-d.row)*h,x1=x0+w,y1=y0+h;
+
+      shapes.push({type:"rect",layer:"below",
+        x0:x0+p*.28,y0:y0+p*.28,x1:x1-p*.28,y1:y1-p*.28,
+        line:{color:CATS[active].color,width:4},fillcolor:CATS[active].fill});
+
+      let inCell="";
+      if(active!=='ad'){
+        const textSource = (obj.titles.join(" ").trim().length>0) ? obj.titles.join(" / ") : obj.detail;
+        const safe = (textSource||"").replace(/\s*\/\s*/g," / ");
+        inCell = `<span style="font-size:11px;line-height:1.18;display:block;text-align:center;white-space:pre-line;color:${textColorOn(CATS[active].fill)}"><b>${safe}</b></span>`;
+      }else{
+        inCell = `<span style="font-size:11px;line-height:1.18;display:block;text-align:center;white-space:pre-line;color:#000"></span>`;
+      }
+
+      txEntry.push((x0+x1)/2); tyEntry.push((y0+y1)/2+.02); ttEntry.push(inCell);
+
+      const hover = (active==='ad' && between(dIso,AD_FROM,AD_TO)) ? "Türchen" : (obj.detail || "");
+      htEntry.push(hover);
+      cdEntry.push([dIso, active, "", obj.detail, CATS[active].color, CATS[active].fill]);
+
+      if(active==='ad' && between(dIso, AD_FROM, AD_TO)){
+        const r=0.055, cx=x1 - 0.16, cy=(y0+y1)/2;
+        shapes.push({type:"circle",layer:"above",
+          x0:cx-r,y0:cy-r,x1:cx+r,y1:cy+r, line:{color:getCSS('--gold'),width:3},fillcolor:"rgba(212,175,55,1)"});
+        shapes.push({type:"circle",layer:"above",
+          x0:cx-r*0.5,y0:cy-r*0.5,x1:cx+r*0.5,y1:cy+r*0.5, line:{color:"rgba(255,255,255,0)",width:0},fillcolor:"rgba(255,255,255,.35)"});
+      }
+    }
+  }
+
+  if(gableGeom){
+    const {leftX,rightX,baseY,apexX,apexY}=gableGeom;
+    shapes.push({ type:"path", layer:"above",
+      path:`M ${apexX},${apexY} L ${leftX},${baseY} L ${rightX},${baseY} Z`,
+      line:{color:"#b91c1c",width:8}, fillcolor:"#4f6b3a"
+    });
+    const starX=(leftX+rightX)/2, starY=(apexY*0.6 + baseY*0.4); const s=0.18;
+    const starPath=(cx,cy,r)=>{const p=[]; for(let i=0;i<10;i++){const ang=Math.PI/2 + i*Math.PI/5; const rr=(i%2===0)?r:r*0.45; p.push((cx+Math.cos(ang)*rr)+","+(cy+Math.sin(ang)*rr)); } return "M "+p.join(" L ")+" Z";};
+    shapes.push({ type:"path", layer:"above", path:starPath(starX,starY,s), line:{color:"#b8860b",width:3}, fillcolor:"#d4af37" });
+
+    const cx=(leftX+rightX+apexX)/3, cy=(baseY+baseY+apexY)/3;
+    txHot.push(cx); tyHot.push(cy); ttHot.push("Adventskalender WS 25/26");
+    cdHot.push([HOTSPOT_GABLE, "ad", "", "Adventskalender WS 25/26", CATS.ad.color, CATS.ad.fill]);
+  }
+
+  const calEl=document.getElementById("cal");
+
+  const hf=(c)=>{const {r,g,b}=hexToRgb(c);return (r*299+g*587+b*114)/1000>=140?"#111":"#fff"};
+  const breakTrace={ x:txBreak,y:tyBreak,text:ttBreak,customdata:cdBreak,hovertext:htBreak,mode:"markers+text",
+    marker:{size:100,opacity:0,color:"rgba(0,0,0,0)"}, textfont:{size:13,family:"Arial",color:"#000"},
+    hoverinfo:"text", hoverlabel:{bgcolor:getCSS('--break'),bordercolor:getCSS('--break'),font:{family:"Arial, Helvetica, sans-serif",size:18,color:hf(getCSS('--break'))}}, hovertemplate:"%{hovertext}<extra></extra>" };
+
+  const entryTrace={ x:txEntry,y:tyEntry,text:ttEntry,customdata:cdEntry,hovertext:htEntry,mode:"markers+text",
+    marker:{size:95,opacity:0,color:"rgba(0,0,0,0)"}, textfont:{size:13,family:"Arial",color:"#000"},
+    hoverinfo:"text", hoverlabel:{bgcolor:(active?CATS[active].color:"#111"),bordercolor:(active?CATS[active].color:"#111"),font:{family:"Arial, Helvetica, sans-serif",size:18,color:hf(active?CATS[active].color:"#111")}}, hovertemplate:"%{hovertext}<extra></extra>" };
+
+  const gableHotspotTrace = (gableGeom && active==='ad') ? {
+    x:txHot, y:tyHot, text:ttHot, customdata:cdHot, hovertext:ttHot, mode:"markers",
+    marker:{size:40, opacity:0, color:"rgba(0,0,0,0)"}, hoverinfo:"text",
+    hoverlabel:{bgcolor:"#b91c1c", bordercolor:"#7a1a1a", font:{family:"Times New Roman, Times, serif", size:18, color:"#fff"}},
+    hovertemplate:"%{hovertext}<extra></extra>"
+  } : null;
+
+  const layout={ xaxis:{visible:false,range:[0,7*w]}, yaxis:{visible:false,range:[0,nRows*h]},
+    margin:{l:10,r:10,t:10,b:10}, plot_bgcolor:"#fff", paper_bgcolor:"#fff", shapes, annotations };
+  const config={displayModeBar:false};
+  const traces = gableHotspotTrace ? [breakTrace,entryTrace,gableHotspotTrace] : [breakTrace,entryTrace];
+
+  Plotly.newPlot(calEl,traces,layout,config).then(()=>{
+    if(calEl.removeAllListeners) calEl.removeAllListeners('plotly_click');
+    calEl.on('plotly_click', onPlotClick);
+
+    const sign=document.getElementById('gable-sign');
+    if(gableGeom && active==='ad'){
+      const {leftX,rightX,baseY}=gableGeom;
+      const gd=calEl._fullLayout, x2px=x=>gd.xaxis.l2p(x)+gd._pos.x, y2px=y=>gd.yaxis.l2p(y)+gd._pos.y;
+      const tx=(leftX+rightX)/2, ty=baseY - 0.08;
+      sign.style.left=x2px(tx)+'px'; sign.style.top=y2px(ty)+'px'; sign.style.display='block';
+    }else{
+      sign.style.display='none';
+    }
+  });
+}
+
+/* Klick → Modal mit Advent-Passwort */
+function onPlotClick(ev){
+  const pt = ev.points && ev.points[0];
+  if(!pt || !pt.customdata) return;
+  const [idOrIso, cat, _title, detail, color] = pt.customdata;
+
+  if(idOrIso===HOTSPOT_GABLE){
+    const m=document.getElementById("modal");
+    document.getElementById("modal-bg").style.display="flex";
+    m.style.border = "4px solid #b91c1c";
+    m.style.background = "#fff";
+    m.style.color = "#111";
+    document.getElementById("m-date").innerHTML = `<span style="font-family:'Times New Roman',Times,serif; font-size:20px; font-weight:700;">Adventskalender WS 25/26</span>`;
+    document.getElementById("m-locked").style.display="none";
+    const content = document.getElementById("m-text");
+    content.style.display="block";
+    content.innerText = "Viel Spaß beim Adventsquiz!";
+    document.getElementById('br-quote').style.display='none';
+    return;
+  }
+
+  if(cat==="break") return;
+  if(!active || cat!==active) return;
+
+  const isAd = (cat==="ad") && between(idOrIso, AD_FROM, AD_TO);
+  const m=document.getElementById("modal");
+  document.getElementById("modal-bg").style.display="flex";
+  m.style.border = "4px solid "+color;
+  m.style.background = rgbaString(color, 0.97);
+  m.style.color = contrastColor(color);
+  m.style.setProperty('--modal-color', color);
+  m.classList.toggle('door-open', isAd);
+
+  const dObj=new Date(idOrIso+"T00:00:00Z");
+  document.getElementById("m-date").innerText=`${fmtDate(dObj)} (${idOrIso})`;
+
+  const locked = document.getElementById("m-locked");
+  const content = document.getElementById("m-text");
+  const br = document.getElementById('br-quote');
+
+  if(isAd){
+    locked.style.display="block";
+    content.style.display="block";
+    content.innerHTML = (detail||"").replace(/\n/g,"<br>");
+    br.style.display='block';
+
+    currentAdIso = idOrIso;
+    currentAdDay = dayOfMonthFromIso(idOrIso);
+    applyAdventLockUI(currentAdDay);
+  }else{
+    locked.style.display="none";
+    content.style.display="block";
+    content.innerText = detail || "Eintrag";
+    br.style.display='none';
+  }
+}
+
+/* Buttons + Deko */
+function setActive(cat){
+  document.querySelectorAll(".btn").forEach(x=>x.classList.remove("active"));
+  active = cat;
+  if(cat) document.querySelector(`.btn[data-cat="${cat}"]`).classList.add("active");
+  closeModal(); render(); setBadge(); updateDecor();
+}
+document.querySelectorAll(".btn").forEach(b=>{
+  b.onclick=()=>{ active===b.dataset.cat ? setActive(null) : setActive(b.dataset.cat); };
+});
+
+/* Modal schließen */
+function closeModal(){
+  document.getElementById("modal-bg").style.display="none";
+  document.getElementById("br-quote").style.display="none";
+  const msg = document.getElementById('code-msg');
+  const input = document.getElementById('code-input');
+  if(msg) msg.textContent = "";
+  if(input) input.value = "";
+  currentAdIso = null;
+  currentAdDay = null;
+}
+document.getElementById("close").onclick=closeModal;
+document.getElementById("modal-bg").onclick=e=>{if(e.target.id==="modal-bg")closeModal();}
+
+/* Initial */
+render(); setBadge(); updateDecor();
+</script>
+</body>
+</html>
